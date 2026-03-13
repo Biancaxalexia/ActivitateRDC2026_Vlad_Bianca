@@ -26,23 +26,77 @@ class State:
                 return f"{key} removed"
             return "Key not found"
 
+    def list(self):
+        with self.lock:
+            result = ",".join(f"{k}={v}" for k, v in self.data.items())
+            return f"DATA|{result}"
+
+    def count(self):
+        with self.lock:
+            return f"DATA {len(self.data)}"
+
+    def clear(self):
+        with self.lock:
+            self.data.clear()
+            return "all data deleted"
+
+    def update(self, key, value):
+        with self.lock:
+            if key in self.data:
+                self.data[key] = value
+                return "Data updated"
+            return "Key not found"
+
+    def pop(self, key):
+        with self.lock:
+            if key in self.data:
+                value = self.data.pop(key)
+                return f"Data {value}"
+            return "Key not found"
+
 state = State()
 
 def process_command(command):
     parts = command.split()
-    if len(parts) < 2:
-        return "Invalid command format"
 
-    cmd, key = parts[0], parts[1]
-    
+    if not parts:
+        return "Invalid command", False
+
+    cmd = parts[0].lower()
+
     if cmd == "add" and len(parts) > 2:
-        return state.add(key, ' '.join(parts[2:]))
+        key = parts[1]
+        return state.add(key, ' '.join(parts[2:])), False
+
     elif cmd == "get" and len(parts) == 2:
-        return state.get(key)
+        key = parts[1]
+        return state.get(key), False
+
     elif cmd == "remove" and len(parts) == 2:
-        return state.remove(key)
-    
-    return "Invalid command"
+        key = parts[1]
+        return state.remove(key), False
+
+    elif cmd == "list" and len(parts) == 1:
+        return state.list(), False
+
+    elif cmd == "count" and len(parts) == 1:
+        return state.count(), False
+
+    elif cmd == "clear" and len(parts) == 1:
+        return state.clear(), False
+
+    elif cmd == "update" and len(parts) > 2:
+        key = parts[1]
+        return state.update(key, ' '.join(parts[2:])), False
+
+    elif cmd == "pop" and len(parts) == 2:
+        key = parts[1]
+        return state.pop(key), False
+
+    elif cmd == "quit" and len(parts) == 1:
+        return "Connection closed", True
+
+    return "Invalid command", False
 
 def handle_client(client_socket):
     with client_socket:
@@ -53,13 +107,18 @@ def handle_client(client_socket):
                     break
 
                 command = data.decode('utf-8').strip()
-                response = process_command(command)
-                
+                response, should_close = process_command(command)
+
                 response_data = f"{len(response)} {response}".encode('utf-8')
                 client_socket.sendall(response_data)
 
+                if should_close:
+                    break
+
             except Exception as e:
-                client_socket.sendall(f"Error: {str(e)}".encode('utf-8'))
+                response = f"Error: {str(e)}"
+                response_data = f"{len(response)} {response}".encode('utf-8')
+                client_socket.sendall(response_data)
                 break
 
 def start_server():
