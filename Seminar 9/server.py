@@ -6,6 +6,9 @@ BUFFER_SIZE = 1024
 
 clienti_conectati = {}
 
+mesaje = {}
+next_id = 1
+
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 server_socket.bind((HOST, PORT))
 
@@ -41,15 +44,56 @@ while True:
                 print(f"[SERVER] Client deconectat: {adresa_client}")
             else:
                 raspuns = "EROARE: Nu esti conectat la server."
-
+        
         elif comanda == 'PUBLISH':
-            raspuns = "EROARE: Comanda PUBLISH nu este inca implementata."
+            if adresa_client not in clienti_conectati:
+                raspuns = "EROARE: Nu esti conectat la server."
+            
+            elif not argumente.strip():
+                raspuns = "EROARE: Mesajul nu poate fi gol."
+            
+            else:
+                mesaj_id = next_id
+                next_id += 1
+
+                mesaje[mesaj_id] = (adresa_client, argumente.strip())
+
+                raspuns = f"OK: Mesaj publicat cu ID={mesaj_id}"
 
         elif comanda == 'DELETE':
-            raspuns = "EROARE: Comanda DELETE nu este inca implementata."
+            if adresa_client not in clienti_conectati:
+                raspuns = "EROARE: Nu esti conectat la server."
+            
+            elif not argumente.strip().isdigit():
+                raspuns = "EROARE: ID invalid."
+            
+            else:
+                mesaj_id = int(argumente.strip())
 
+                if mesaj_id not in mesaje:
+                    raspuns = "EROARE: Mesajul nu exista."
+                
+                elif mesaje[mesaj_id][0] != adresa_client:
+                    raspuns = "EROARE: Nu esti autorul mesajului."
+                
+                else:
+                    del mesaje[mesaj_id]
+                    raspuns = "OK: Mesaj sters."
+        
         elif comanda == 'LIST':
-            raspuns = "EROARE: Comanda LIST nu este inca implementata."
+            if adresa_client not in clienti_conectati:
+                raspuns = "EROARE: Nu esti conectat la server."
+            
+            elif not mesaje:
+                raspuns = "Nu exista mesaje."
+            
+            else:
+                linii = []
+                for mid in mesaje:
+                    text = mesaje[mid][1]
+                    linii.append(f"{mid}: {text}")
+                
+                raspuns = "\n".join(linii)
 
         else:
             raspuns = f"EROARE: Comanda '{comanda}' este necunoscuta. Comenzi valide: CONNECT, DISCONNECT, PUBLISH, DELETE, LIST"
